@@ -1,6 +1,6 @@
 # Husky Path
 
-**Live demo:** https://YOUR-GITHUB-Eman.github.io/husky-path/?example
+**Live demo:** https://Emanuel-CDV.github.io/husky-path/?example
 
 A course planner for UW CSE students. Mark the courses you've taken or are taking now. Husky Path shows what you can take next and builds a quarter-by-quarter path to any course.
 
