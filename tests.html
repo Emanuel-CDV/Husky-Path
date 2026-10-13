@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Husky Path Tests</title>
+  <style>
+    :root { --bg: #ffffff; --text: #1d1a24; --pass: #1f7a4d; --fail: #b3261e; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #15121c; --text: #ece8f4; --pass: #5fd39a; --fail: #ff8a80; }
+    }
+    body { background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 16px; }
+    .pass { color: var(--pass); }
+    .fail { color: var(--fail); font-weight: 600; }
+    a { color: inherit; }
+  </style>
+</head>
+<body>
+  <h1>Husky Path tests</h1>
+  <p id="summary"></p>
+  <ul id="results"></ul>
+  <p><a href="index.html">Back to the app</a></p>
+
+  <script src="courses.js"></script>
+  <script src="graph.js"></script>
+  <script>
+    const results = [];
+    function test(name, fn) {
+      try {
+        fn();
+        results.push({ name, ok: true });
+      } catch (err) {
+        results.push({ name, ok: false, message: err.message });
+      }
+    }
+    function assert(condition, message) {
+      if (!condition) throw new Error(message || "assertion failed");
+    }
+    function sameSet(a, b) {
+      return a.size === b.size && [...a].every(x => b.has(x));
+    }
+
+    const byId = indexCourses(COURSES);
+    // A student who finished the intro + core courses.
+    const CORE = new Set(["CSE 121", "CSE 122", "CSE 123", "MATH 124", "MATH 125", "MATH 126",
+                          "CSE 311", "CSE 331", "CSE 332", "CSE 351"]);
+
+    // Checks that a plan is a valid schedule.
+    function assertValidPlan(plan, taken, max) {
+      const done = new Set(taken);
+      for (const quarter of plan.quarters) {
+        assert(quarter.length >= 1 && quarter.length <= max, `quarter size ${quarter.length} breaks limit ${max}`);
+        for (const id of quarter) {
+          assert(isAvailable(byId.get(id), done), `${id} scheduled before its prereqs`);
+        }
+        for (const id of quarter) done.add(id); // same-quarter courses can't depend on each other
+      }
+      const scheduled = plan.quarters.flat();
+      assert(scheduled.length === plan.needed.size, "every needed course is scheduled exactly once");
+    }
+
+    test("course data has no prerequisite cycles", () => {
+      assert(detectCycle(COURSES) === null);
+    });
+
+    test("every prerequisite refers to a real course", () => {
+      for (const c of COURSES) for (const p of prereqIds(c)) assert(byId.has(p), `${c.id} -> unknown ${p}`);
+    });
+
+    test("detectCycle finds a cycle", () => {
+      const bad = [
+        { id: "A", prereqs: [["C"]] },
+        { id: "B", prereqs: [["A"]] },
+        { id: "C", prereqs: [["B"]] },
+      ];
+      const cycle = detectCycle(bad);
+      assert(cycle !== null, "expected a cycle");
+      assert(cycle[0] === cycle[cycle.length - 1], "cycle starts and ends at the same course");
+    });
+
+    test("OR prereqs: either intro sequence unlocks CSE 351", () => {
+      assert(isAvailable(byId.get("CSE 351"), new Set(["CSE 123"])));
+      assert(isAvailable(byId.get("CSE 351"), new Set(["CSE 143"])));
+      assert(!isAvailable(byId.get("CSE 351"), new Set(["CSE 122"])));
+    });
+
+    test("AND prereqs: CSE 311 needs intro AND MATH 126", () => {
+      assert(!isAvailable(byId.get("CSE 311"), new Set(["CSE 123"])));
+      assert(isAvailable(byId.get("CSE 311"), new Set(["CSE 123", "MATH 126"])));
+    });
+
+    test("missingClauses lists only unmet clauses", () => {
+      const missing = missingClauses(byId.get("CSE 311"), new Set(["MATH 126"]));
+      assert(missing.length === 1 && missing[0].includes("CSE 123") && missing[0].includes("CSE 143"));
+    });
+
+    test("depths: longest prerequisite chain", () => {
+      const d = depths(COURSES);
+      assert(d.get("CSE 121") === 0);
+      assert(d.get("CSE 123") === 2);
+      assert(d.get("CSE 311") === 3);
+      assert(d.get("CSE 333") === 4);
+    });
+
+    test("requiredFor: after the core, CSE 452 needs only 333 and 452", () => {
+      assert(sameSet(requiredFor("CSE 452", byId, CORE), new Set(["CSE 333", "CSE 452"])));
+    });
+
+    test("requiredFor: CSE 444 is satisfied by 414 instead of 344", () => {
+      const withDb = new Set([...CORE, "CSE 414"]);
+      assert(sameSet(requiredFor("CSE 444", byId, withDb), new Set(["CSE 444"])));
+    });
+
+    test("requiredFor: picks the cheaper OR option", () => {
+      // Having taken CSE 142, finishing via 143 (1 course) beats 121-123 (3 courses).
+      const need = requiredFor("CSE 351", byId, new Set(["CSE 142"]));
+      assert(sameSet(need, new Set(["CSE 143", "CSE 351"])));
+    });
+
+    test("planQuarters: CSE 446 puts 312 and MATH 208 before 446", () => {
+      const plan = planQuarters(["CSE 446"], byId, CORE, 2);
+      assert(plan.quarters.length === 2);
+      assert(sameSet(new Set(plan.quarters[0]), new Set(["CSE 312", "MATH 208"])));
+      assert(plan.quarters[1][0] === "CSE 446");
+    });
+
+    test("planQuarters: critical-path course goes first when space is tight", () => {
+      // From scratch with 1 course/quarter, the first course must start the longest chain.
+      const plan = planQuarters(["CSE 451"], byId, new Set(), 1);
+      assertValidPlan(plan, new Set(), 1);
+      assert(["CSE 142", "CSE 121", "MATH 124"].includes(plan.quarters[0][0]));
+    });
+
+    test("planQuarters: valid schedule for every target and limit", () => {
+      for (const taken of [new Set(), CORE]) {
+        for (const c of COURSES) {
+          if (taken.has(c.id)) continue;
+          for (let max = 1; max <= 4; max++) {
+            assertValidPlan(planQuarters([c.id], byId, taken, max), taken, max);
+          }
+        }
+      }
+    });
+
+    test("planQuarters: rejects a limit below 1", () => {
+      let threw = false;
+      try { planQuarters(["CSE 452"], byId, CORE, 0); } catch { threw = true; }
+      assert(threw);
+    });
+
+    // Render results
+    const list = document.getElementById("results");
+    for (const r of results) {
+      const li = document.createElement("li");
+      li.className = r.ok ? "pass" : "fail";
+      li.textContent = (r.ok ? "PASS " : "FAIL ") + r.name + (r.ok ? "" : ` (${r.message})`);
+      list.append(li);
+    }
+    const passed = results.filter(r => r.ok).length;
+    const summary = document.getElementById("summary");
+    summary.textContent = `${passed} / ${results.length} tests passed`;
+    summary.className = passed === results.length ? "pass" : "fail";
+  </script>
+</body>
+</html>

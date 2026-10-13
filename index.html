@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Husky Path</title>
+  <meta name="description" content="Plan your UW CSE courses: see what you can take next and a quarter-by-quarter path to any course.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <h1>Husky Path</h1>
+      <p class="tagline">Mark the UW courses you've taken. See what unlocks next, and plan a quarter-by-quarter path to any CSE course.</p>
+      <div class="stats" id="stats" aria-live="polite"></div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="panel" aria-labelledby="plan-heading">
+      <h2 id="plan-heading">Plan my path</h2>
+      <div class="plan-controls">
+        <label>
+          Target course
+          <select id="target"></select>
+        </label>
+        <label>
+          Max courses per quarter
+          <select id="max-per-quarter">
+            <option>1</option>
+            <option selected>2</option>
+            <option>3</option>
+            <option>4</option>
+          </select>
+        </label>
+      </div>
+      <div id="plan" aria-live="polite"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="courses-heading">
+      <div class="panel-head">
+        <h2 id="courses-heading">Your courses</h2>
+        <div class="actions">
+          <button type="button" class="btn-secondary" id="example">Try an example</button>
+          <button type="button" class="btn-secondary" id="reset">Reset</button>
+        </div>
+      </div>
+      <ul class="legend">
+        <li><span class="dot taken"></span>Taken</li>
+        <li><span class="dot in-progress"></span>In progress</li>
+        <li><span class="dot available"></span>Available now</li>
+        <li><span class="dot locked"></span>Locked</li>
+      </ul>
+      <p class="hint">Tap a course once for "taken", twice for "in progress", and a third time to clear it.</p>
+      <div id="course-groups"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="map-heading">
+      <h2 id="map-heading">Prerequisite map</h2>
+      <p class="hint">Columns show the longest prerequisite chain. Hover or tap a course to highlight everything it requires. Dashed lines are "either/or" options.</p>
+      <div class="graph-scroll">
+        <svg id="graph" role="img" aria-label="Prerequisite graph of UW CSE courses"></svg>
+      </div>
+    </section>
+
+    <p class="disclaimer">
+      Prerequisites are simplified for planning, and the planner assumes every course is offered every quarter.
+      Always check the official UW course catalog and talk to your adviser.
+    </p>
+  </main>
+
+  <footer class="wrap footer">
+    Built with vanilla JavaScript. No frameworks. <a href="tests.html">Run the tests</a>
+  </footer>
+
+  <script src="courses.js"></script>
+  <script src="graph.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
